@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include <string.h>
 #include <vector>
+#include <termios.h>
 
 class htif_t
 {
@@ -54,7 +55,7 @@ class htif_t
   bool started;
   uint32_t _mem_mb;
   uint32_t _num_cores;
-  struct termios* old_tios;
+  struct termios tio_save;
   std::vector<std::string> hargs;
   std::vector<std::string> targs;
   std::vector<uint32_t> coremap_pool;
@@ -64,9 +65,6 @@ class htif_t
   std::vector<char> read_buf;
   virtual packet_t read_packet(seqno_t expected_seqno);
   virtual void write_packet(const packet_t& packet);
-
-  void termios_init();
-  void termios_destroy();
 
   friend class memif_t;
   friend class syscall_t;

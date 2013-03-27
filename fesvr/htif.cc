@@ -4,16 +4,17 @@
 #include "elfloader.h"
 #include <algorithm>
 #include <assert.h>
-#include <termios.h>
 #include <vector>
 #include <queue>
 #include <iostream>
 #include <stdio.h>
 #include <unistd.h>
+#include <termios.h>
+#include <fcntl.h>
 
 htif_t::htif_t(const std::vector<std::string>& args)
   : exitcode(0), mem(this), syscall(this), seqno(1), started(false),
-    _mem_mb(0), _num_cores(0), old_tios(0), sig_addr(0), sig_len(0)
+    _mem_mb(0), _num_cores(0), sig_addr(0), sig_len(0)
 {
   size_t i;
   for (i = 0; i < args.size(); i++)
@@ -22,11 +23,25 @@ htif_t::htif_t(const std::vector<std::string>& args)
 
   hargs.insert(hargs.begin(), args.begin(), args.begin() + i);
   targs.insert(targs.begin(), args.begin() + i, args.end());
+
+  if (isatty(STDIN_FILENO)) {
+    struct termios tio;
+
+    tcgetattr(STDIN_FILENO, &tio);
+    tio_save = tio;
+    tio.c_lflag &= ~(ICANON | ECHO);
+    tio.c_cc[VMIN] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &tio);
+  } else {
+    fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
+  }
 }
 
 htif_t::~htif_t()
 {
-  termios_destroy();
+  if (isatty(STDIN_FILENO)) {
+    tcsetattr(STDIN_FILENO, TCSANOW, &tio_save);
+  }
 }
 
 packet_t htif_t::read_packet(seqno_t expected_seqno)
@@ -302,7 +317,7 @@ void htif_t::poll_tohost(int coreid, core_status* s)
           unsigned char ch = PAYLOAD(tohost);
           if (ch == 0)
             exitcode = 1;
-          assert(::write(1, &ch, 1) == 1);
+          assert(::write(STDOUT_FILENO, &ch, 1) == 1);
           break;
         }
       };
@@ -315,9 +330,8 @@ void htif_t::poll_keyboard(int coreid, core_status* s)
 {
   if (s->poll_keyboard)
   {
-    termios_init();
     unsigned char ch;
-    if (::read(0, &ch, 1) == 1)
+    if (::read(STDIN_FILENO, &ch, 1) == 1)
     {
       s->fromhost.push(s->poll_keyboard | ch);
       s->poll_keyboard = 0;
@@ -333,29 +347,6 @@ void htif_t::drain_fromhost_writes(int coreid, core_status* s, bool sync)
     if (write_cr(coreid, 31, value) == 0)
       s->fromhost.pop();
     if (!sync) break;
-  }
-}
-
-void htif_t::termios_init()
-{
-  if (!old_tios)
-  {
-    old_tios = new struct termios;
-    tcgetattr(0, old_tios);
-
-    struct termios new_tios = *old_tios;
-    new_tios.c_lflag &= ~(ICANON | ECHO);
-    new_tios.c_cc[VMIN] = 0;
-    tcsetattr(0, TCSANOW, &new_tios);
-  }
-}
-
-void htif_t::termios_destroy()
-{
-  if (old_tios)
-  {
-    tcsetattr(0, TCSANOW, old_tios);
-    delete old_tios;
   }
 }
 
