@@ -5,14 +5,16 @@
 
 #include "htif.h"
 #include <pthread.h>
+#include <unistd.h>
 #include <deque>
 
 class htif_pthread_t : public htif_t
 {
  public:
-  htif_pthread_t(const std::vector<std::string>& target_args);
+  htif_pthread_t(const std::vector<std::string>& target_args,
+    int _host_in = STDIN_FILENO, int _host_out = STDOUT_FILENO);
 
-  // target inteface
+  // target interface
   void send(const void* buf, size_t size);
   void recv(void* buf, size_t size);
   bool recv_nonblocking(void* buf, size_t size);

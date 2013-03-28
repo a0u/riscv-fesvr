@@ -11,8 +11,8 @@ static void* thread_main(void* arg)
   return 0;
 }
 
-htif_pthread_t::htif_pthread_t(const std::vector<std::string>& args)
-  : htif_t(args)
+htif_pthread_t::htif_pthread_t(const std::vector<std::string>& args, int _host_in, int _host_out)
+  : htif_t(args, _host_in, _host_out)
 {
   assert(pthread_mutex_init(&th_lock, 0) == 0);
   assert(pthread_cond_init(&th_cond, 0) == 0);

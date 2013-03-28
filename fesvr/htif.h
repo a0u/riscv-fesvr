@@ -7,12 +7,15 @@
 #include "syscall.h"
 #include <string.h>
 #include <vector>
+
+#include <unistd.h>
 #include <termios.h>
 
 class htif_t
 {
  public:
-  htif_t(const std::vector<std::string>& target_args);
+  htif_t(const std::vector<std::string>& target_args,
+    int _host_in = STDIN_FILENO, int _host_out = STDOUT_FILENO);
   virtual ~htif_t();
 
   virtual void start();
@@ -55,6 +58,8 @@ class htif_t
   bool started;
   uint32_t _mem_mb;
   uint32_t _num_cores;
+  int host_in;  /* host-side input fd */
+  int host_out; /* host-side output fd */
   struct termios tio_save;
   std::vector<std::string> hargs;
   std::vector<std::string> targs;

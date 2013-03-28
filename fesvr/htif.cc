@@ -12,9 +12,10 @@
 #include <termios.h>
 #include <fcntl.h>
 
-htif_t::htif_t(const std::vector<std::string>& args)
+htif_t::htif_t(const std::vector<std::string>& args, int _host_in, int _host_out)
   : exitcode(0), mem(this), syscall(this), seqno(1), started(false),
-    _mem_mb(0), _num_cores(0), sig_addr(0), sig_len(0)
+    _mem_mb(0), _num_cores(0), host_in(_host_in), host_out(_host_out),
+    sig_addr(0), sig_len(0)
 {
   size_t i;
   for (i = 0; i < args.size(); i++)
@@ -24,23 +25,22 @@ htif_t::htif_t(const std::vector<std::string>& args)
   hargs.insert(hargs.begin(), args.begin(), args.begin() + i);
   targs.insert(targs.begin(), args.begin() + i, args.end());
 
-  if (isatty(STDIN_FILENO)) {
+  fcntl(host_in, F_SETFL, O_NONBLOCK);
+  if (isatty(host_in)) {
     struct termios tio;
 
-    tcgetattr(STDIN_FILENO, &tio);
+    tcgetattr(host_in, &tio);
     tio_save = tio;
     tio.c_lflag &= ~(ICANON | ECHO);
     tio.c_cc[VMIN] = 0;
-    tcsetattr(STDIN_FILENO, TCSANOW, &tio);
-  } else {
-    fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
+    tcsetattr(host_in, TCSANOW, &tio);
   }
 }
 
 htif_t::~htif_t()
 {
-  if (isatty(STDIN_FILENO)) {
-    tcsetattr(STDIN_FILENO, TCSANOW, &tio_save);
+  if (isatty(host_in)) {
+    tcsetattr(host_in, TCSANOW, &tio_save);
   }
 }
 
@@ -317,7 +317,7 @@ void htif_t::poll_tohost(int coreid, core_status* s)
           unsigned char ch = PAYLOAD(tohost);
           if (ch == 0)
             exitcode = 1;
-          assert(::write(STDOUT_FILENO, &ch, 1) == 1);
+          assert(::write(host_out, &ch, 1) == 1);
           break;
         }
       };
@@ -331,7 +331,7 @@ void htif_t::poll_keyboard(int coreid, core_status* s)
   if (s->poll_keyboard)
   {
     unsigned char ch;
-    if (::read(STDIN_FILENO, &ch, 1) == 1)
+    if (::read(host_in, &ch, 1) == 1)
     {
       s->fromhost.push(s->poll_keyboard | ch);
       s->poll_keyboard = 0;
